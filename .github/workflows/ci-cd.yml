@@ -111,7 +111,7 @@ jobs:
   # JOB 3: Multi-Stage Docker Build & Push
   # ─────────────────────────────────────────────────────────────────────────────
   docker-build-push:
-    name: Docker Build & Push
+    name: Docker Build & Scan
     runs-on: ubuntu-latest
     needs: [lint-and-validate, security-scan]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -119,54 +119,60 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up QEMU (multi-arch)
-        uses: docker/setup-qemu-action@v3
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to Docker Hub
+      - name: Check Registry Credentials
+        id: auth_check
+        run: |
+          if [ -n "${{ secrets.DOCKER_USERNAME }}" ] && [ -n "${{ secrets.DOCKER_PASSWORD }}" ]; then
+            echo "has_creds=true" >> $GITHUB_OUTPUT
+            echo "push=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_creds=false" >> $GITHUB_OUTPUT
+            echo "push=false" >> $GITHUB_OUTPUT
+            echo "::notice::Docker Hub credentials not configured. Building and scanning images locally in runner."
+          fi
+
+      - name: Login to Docker Hub (if configured)
+        if: steps.auth_check.outputs.has_creds == 'true'
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build & Push API Gateway
+      - name: Build & Package API Gateway Image
         uses: docker/build-push-action@v5
         with:
           context: ./api-gateway
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ${{ env.API_IMAGE }}:${{ env.IMAGE_TAG }}
-            ${{ env.API_IMAGE }}:latest
-          cache-from: type=gha,scope=api-gateway
-          cache-to: type=gha,mode=max,scope=api-gateway
-          labels: |
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.source=${{ github.repositoryUrl }}
-            org.opencontainers.image.title=RAG API Gateway (INT378)
+          load: true
+          push: false
+          tags: rag-api-gateway:latest
 
-      - name: Build & Push ML Worker
+      - name: Build & Package ML Worker Image
         uses: docker/build-push-action@v5
         with:
           context: ./ml-worker
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: |
-            ${{ env.ML_IMAGE }}:${{ env.IMAGE_TAG }}
-            ${{ env.ML_IMAGE }}:latest
-          cache-from: type=gha,scope=ml-worker
-          cache-to: type=gha,mode=max,scope=ml-worker
-          labels: |
-            org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.source=${{ github.repositoryUrl }}
-            org.opencontainers.image.title=RAG ML Worker (INT378)
+          load: true
+          push: false
+          tags: rag-ml-worker:latest
+
+      - name: Push to Docker Hub (if authenticated)
+        if: steps.auth_check.outputs.push == 'true'
+        run: |
+          docker tag rag-api-gateway:latest ${{ env.API_IMAGE }}:${{ env.IMAGE_TAG }}
+          docker tag rag-api-gateway:latest ${{ env.API_IMAGE }}:latest
+          docker tag rag-ml-worker:latest ${{ env.ML_IMAGE }}:${{ env.IMAGE_TAG }}
+          docker tag rag-ml-worker:latest ${{ env.ML_IMAGE }}:latest
+          docker push ${{ env.API_IMAGE }}:${{ env.IMAGE_TAG }}
+          docker push ${{ env.API_IMAGE }}:latest
+          docker push ${{ env.ML_IMAGE }}:${{ env.IMAGE_TAG }}
+          docker push ${{ env.ML_IMAGE }}:latest
 
       - name: Trivy Image Scan — API Gateway
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: '${{ env.API_IMAGE }}:${{ env.IMAGE_TAG }}'
+          image-ref: 'rag-api-gateway:latest'
           severity: 'HIGH,CRITICAL'
           exit-code: '0'
           format: 'table'
@@ -174,21 +180,19 @@ jobs:
       - name: Trivy Image Scan — ML Worker
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: '${{ env.ML_IMAGE }}:${{ env.IMAGE_TAG }}'
+          image-ref: 'rag-ml-worker:latest'
           severity: 'HIGH,CRITICAL'
           exit-code: '0'
           format: 'table'
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # JOB 4: Kubernetes Rolling Update
+  # JOB 4: Kubernetes Rolling Update Validation
   # ─────────────────────────────────────────────────────────────────────────────
   k8s-deploy:
     name: K8s Rolling Update
     runs-on: ubuntu-latest
     needs: docker-build-push
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    environment:
-      name: ${{ github.event.inputs.environment || 'dev' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -198,47 +202,32 @@ jobs:
         with:
           version: 'v1.30.0'
 
-      - name: Configure kubectl
+      - name: Validate K8s Manifests (Client Dry-Run)
+        run: |
+          kubectl apply -f k8s/namespace.yaml --dry-run=client
+          kubectl apply -f k8s/redis-mongo.yaml --dry-run=client
+          kubectl apply -f k8s/api-gateway-deployment.yaml --dry-run=client
+          kubectl apply -f k8s/ml-worker-deployment.yaml --dry-run=client
+          kubectl apply -f k8s/hpa.yaml --dry-run=client
+          kubectl apply -f k8s/ingress.yaml --dry-run=client
+          echo "✅ All Kubernetes manifests validated (dry-run passed)"
+
+      - name: Deploy to Live Cluster (if KUBECONFIG provided)
+        if: env.HAS_KUBECONFIG == 'true'
+        env:
+          HAS_KUBECONFIG: ${{ secrets.KUBECONFIG != '' }}
         run: |
           mkdir -p ~/.kube
           echo "${{ secrets.KUBECONFIG }}" | base64 -d > ~/.kube/config
-          kubectl config current-context || echo "⚠️  No cluster available in CI"
-
-      - name: Apply K8s Manifests
-        run: |
-          kubectl apply -f k8s/namespace.yaml           || true
-          kubectl apply -f k8s/redis-mongo.yaml         || true
-          kubectl apply -f k8s/api-gateway-deployment.yaml || true
-          kubectl apply -f k8s/ml-worker-deployment.yaml   || true
-          kubectl apply -f k8s/hpa.yaml                    || true
-          kubectl apply -f k8s/ingress.yaml                || true
-          echo "✅ K8s manifests applied"
-
-      - name: Update Image Tags
-        run: |
-          kubectl set image deployment/api-gateway-deployment \
-            api-gateway="${{ env.API_IMAGE }}:${{ env.IMAGE_TAG }}" \
-            -n rag-engine || echo "⚠️  No cluster"
-
-          kubectl set image deployment/ml-worker-deployment \
-            ml-worker="${{ env.ML_IMAGE }}:${{ env.IMAGE_TAG }}" \
-            -n rag-engine || echo "⚠️  No cluster"
-
-      - name: Rolling Restart
-        run: |
-          kubectl rollout restart deployment/api-gateway-deployment -n rag-engine || true
-          kubectl rollout restart deployment/ml-worker-deployment   -n rag-engine || true
-          kubectl rollout status deployment/api-gateway-deployment \
-            -n rag-engine --timeout=300s || true
-          kubectl rollout status deployment/ml-worker-deployment \
-            -n rag-engine --timeout=300s || true
-          echo "✅ Rolling update complete"
-
-      - name: Verify Deployment
-        run: |
-          kubectl get pods -n rag-engine || echo "⚠️  Cluster unavailable"
-          kubectl get hpa  -n rag-engine || true
-          echo "✅ Deployment verification done"
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/redis-mongo.yaml
+          kubectl apply -f k8s/api-gateway-deployment.yaml
+          kubectl apply -f k8s/ml-worker-deployment.yaml
+          kubectl apply -f k8s/hpa.yaml
+          kubectl apply -f k8s/ingress.yaml
+          kubectl rollout status deployment/api-gateway-deployment -n rag-engine --timeout=180s || true
+          kubectl rollout status deployment/ml-worker-deployment -n rag-engine --timeout=180s || true
+          echo "✅ Live deployment complete"
 
   # ─────────────────────────────────────────────────────────────────────────────
   # JOB 5: Notification Summary

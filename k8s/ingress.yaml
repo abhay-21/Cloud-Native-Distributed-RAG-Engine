@@ -1,0 +1,58 @@
+---
+# NGINX Ingress — routes to API Gateway
+# Requires: kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.10.0/deploy/static/provider/cloud/deploy.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: rag-engine-ingress
+  namespace: rag-engine
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "10"
+    # SSE: disable buffering for /api/query/stream
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    # Rate limiting
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    # cert-manager TLS (comment out if cert-manager not installed)
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  # Uncomment for TLS with cert-manager:
+  # tls:
+  #   - hosts:
+  #       - rag-engine.example.com
+  #     secretName: rag-engine-tls
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 3000
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 3000
+          - path: /health
+            pathType: Exact
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 3000
+          - path: /metrics
+            pathType: Exact
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 3000

@@ -1,0 +1,10 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rag-engine
+  labels:
+    name: rag-engine
+    project: cloud-native-rag
+    owner: abhay-int378
+    managed-by: kubectl

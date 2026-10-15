@@ -1,0 +1,101 @@
+---
+# HorizontalPodAutoscaler for ML Worker
+# autoscaling/v2 — CPU + custom metric (rag_worker_queue_depth)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ml-worker-hpa
+  namespace: rag-engine
+  labels:
+    app: ml-worker
+    component: autoscaling
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ml-worker-deployment
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    # ── CPU Utilization ───────────────────────────────────────────────────────
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 65
+
+    # ── Memory Utilization ────────────────────────────────────────────────────
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75
+
+    # ── Custom Metric: Redis Queue Depth ─────────────────────────────────────
+    # Requires Prometheus Adapter (https://github.com/kubernetes-sigs/prometheus-adapter)
+    # Configure adapter with:
+    #   - seriesQuery: 'rag_worker_queue_depth'
+    #     resources: { namespaced: true }
+    #     name: { matches: "^(.*)$", as: "${1}" }
+    #     metricsQuery: 'avg(rag_worker_queue_depth)'
+    - type: External
+      external:
+        metric:
+          name: rag_worker_queue_depth
+          selector:
+            matchLabels:
+              service: ml-worker
+        target:
+          type: AverageValue
+          averageValue: "50"   # Scale up when queue depth > 50 jobs
+
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+        - type: Pods
+          value: 2
+          periodSeconds: 60
+        - type: Percent
+          value: 50
+          periodSeconds: 60
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300   # 5 min cool-down prevents thrashing
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 120
+      selectPolicy: Min
+
+---
+# HorizontalPodAutoscaler for API Gateway
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-gateway-hpa
+  namespace: rag-engine
+  labels:
+    app: api-gateway
+    component: autoscaling
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-gateway-deployment
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 180

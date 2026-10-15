@@ -1,0 +1,67 @@
+---
+# VerticalPodAutoscaler for ML Worker
+# Requires: kubectl apply -f https://github.com/kubernetes/autoscaler/releases/latest/download/vertical-pod-autoscaler.yaml
+#
+# VPA right-sizes CPU/memory requests based on historical usage.
+# Mode: "Auto" — VPA applies recommendations and restarts pods as needed.
+# Use case: During large PDF ingestion bursts, VPA prevents OOM kills by
+#           increasing memory limits automatically.
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: ml-worker-vpa
+  namespace: rag-engine
+  labels:
+    app: ml-worker
+    component: vpa
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ml-worker-deployment
+  updatePolicy:
+    updateMode: "Auto"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: ml-worker
+        minAllowed:
+          cpu: "100m"
+          memory: "256Mi"
+        maxAllowed:
+          cpu: "2000m"
+          memory: "4Gi"
+        controlledResources:
+          - cpu
+          - memory
+        controlledValues: RequestsAndLimits
+
+---
+# VPA for API Gateway (memory optimization)
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: api-gateway-vpa
+  namespace: rag-engine
+  labels:
+    app: api-gateway
+    component: vpa
+spec:
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-gateway-deployment
+  updatePolicy:
+    updateMode: "Auto"
+  resourcePolicy:
+    containerPolicies:
+      - containerName: api-gateway
+        minAllowed:
+          cpu: "50m"
+          memory: "128Mi"
+        maxAllowed:
+          cpu: "1000m"
+          memory: "1Gi"
+        controlledResources:
+          - cpu
+          - memory
+        controlledValues: RequestsAndLimits

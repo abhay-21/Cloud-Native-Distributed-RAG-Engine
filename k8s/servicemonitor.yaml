@@ -1,0 +1,54 @@
+---
+# Prometheus Operator ServiceMonitor CRD
+# Requires: Prometheus Operator installed in cluster
+# kubectl apply -f https://operatorhub.io/install/prometheus.yaml
+#
+# This ServiceMonitor configures Prometheus Operator to automatically
+# discover and scrape the API Gateway and ML Worker metric endpoints.
+
+# ─── API Gateway ServiceMonitor ───────────────────────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: api-gateway-monitor
+  namespace: rag-engine
+  labels:
+    app: api-gateway
+    release: prometheus    # Must match Prometheus Operator's serviceMonitorSelector
+spec:
+  selector:
+    matchLabels:
+      app: api-gateway
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 5s
+      scrapeTimeout: 4s
+      scheme: http
+  namespaceSelector:
+    matchNames:
+      - rag-engine
+
+---
+# ─── ML Worker ServiceMonitor ─────────────────────────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: ml-worker-monitor
+  namespace: rag-engine
+  labels:
+    app: ml-worker
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: ml-worker
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 5s
+      scrapeTimeout: 4s
+      scheme: http
+  namespaceSelector:
+    matchNames:
+      - rag-engine

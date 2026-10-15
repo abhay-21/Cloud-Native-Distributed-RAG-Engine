@@ -1,0 +1,43 @@
+global:
+  scrape_interval:     5s      # Scrape every 5 seconds for responsive Grafana graphs
+  evaluation_interval: 5s
+  external_labels:
+    cluster: 'rag-engine-local'
+    env: 'docker-compose'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+rule_files: []
+
+scrape_configs:
+  # ── API Gateway ───────────────────────────────────
+  - job_name: 'api-gateway'
+    static_configs:
+      - targets: ['api-gateway:3000']
+        labels:
+          service: 'api-gateway'
+          component: 'nodejs'
+    metrics_path: /metrics
+    scrape_interval: 5s
+    scrape_timeout: 4s
+
+  # ── ML Worker ──────────────────────────────────────
+  - job_name: 'ml-worker'
+    static_configs:
+      - targets: ['ml-worker:8000']
+        labels:
+          service: 'ml-worker'
+          component: 'python-fastapi'
+    metrics_path: /metrics
+    scrape_interval: 5s
+    scrape_timeout: 4s
+
+  # ── Prometheus self-scrape ─────────────────────────
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+        labels:
+          service: 'prometheus'

@@ -1,0 +1,1078 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cloud-Native RAG Engine — Live Dashboard</title>
+  <meta name="description" content="Real-time dashboard for the Cloud-Native Distributed RAG Engine with Kubernetes autoscaling, MongoDB vector search, and live Prometheus metrics." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-primary   : #0a0e1a;
+      --bg-secondary : #0f1629;
+      --bg-card      : #131d35;
+      --bg-card-hover: #1a2645;
+      --border       : rgba(99,179,255,0.15);
+      --border-bright: rgba(99,179,255,0.4);
+      --accent-blue  : #4f8ef7;
+      --accent-cyan  : #06b6d4;
+      --accent-green : #10b981;
+      --accent-purple: #8b5cf6;
+      --accent-orange: #f59e0b;
+      --accent-pink  : #ec4899;
+      --accent-red   : #ef4444;
+      --text-primary : #e8f0fe;
+      --text-secondary:#94a3b8;
+      --text-muted   : #64748b;
+      --gradient-blue: linear-gradient(135deg, #4f8ef7, #06b6d4);
+      --gradient-purple: linear-gradient(135deg, #8b5cf6, #ec4899);
+      --gradient-green: linear-gradient(135deg, #10b981, #06b6d4);
+      --shadow-card  : 0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(99,179,255,0.08);
+      --radius       : 16px;
+      --radius-sm    : 10px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Animated background ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 20% -10%, rgba(79,142,247,0.12) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 110%, rgba(139,92,246,0.10) 0%, transparent 60%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Layout ── */
+    .container { max-width: 1400px; margin: 0 auto; padding: 0 24px; position: relative; z-index: 1; }
+
+    /* ── Header ── */
+    header {
+      background: rgba(15,22,41,0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      position: sticky; top: 0; z-index: 100;
+      padding: 0 24px;
+    }
+    .header-inner {
+      max-width: 1400px; margin: 0 auto;
+      display: flex; align-items: center; justify-content: space-between;
+      height: 64px;
+    }
+    .logo {
+      display: flex; align-items: center; gap: 12px;
+    }
+    .logo-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: var(--gradient-blue);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 0 20px rgba(79,142,247,0.4);
+      animation: pulse-glow 3s ease-in-out infinite;
+    }
+    @keyframes pulse-glow {
+      0%,100% { box-shadow: 0 0 20px rgba(79,142,247,0.4); }
+      50%      { box-shadow: 0 0 35px rgba(79,142,247,0.7), 0 0 60px rgba(6,182,212,0.3); }
+    }
+    .logo-text { font-size: 15px; font-weight: 700; letter-spacing: -0.3px; }
+    .logo-sub  { font-size: 11px; color: var(--text-muted); font-weight: 400; }
+    .header-links { display: flex; gap: 8px; }
+    .header-link {
+      padding: 6px 14px; border-radius: 8px; font-size: 12px; font-weight: 500;
+      color: var(--text-secondary); text-decoration: none; cursor: pointer;
+      border: 1px solid transparent;
+      transition: all .2s;
+      background: none;
+    }
+    .header-link:hover { background: var(--bg-card); border-color: var(--border); color: var(--text-primary); }
+    .header-link.active { background: rgba(79,142,247,0.15); border-color: rgba(79,142,247,0.4); color: var(--accent-blue); }
+
+    /* ── Hero Banner ── */
+    .hero {
+      padding: 48px 0 32px;
+      text-align: center;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 16px; border-radius: 100px;
+      background: rgba(79,142,247,0.1); border: 1px solid rgba(79,142,247,0.3);
+      font-size: 12px; font-weight: 500; color: var(--accent-blue);
+      margin-bottom: 20px;
+    }
+    .hero-badge::before { content: '●'; color: var(--accent-green); animation: blink 1.5s ease infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    h1.hero-title {
+      font-size: clamp(28px, 4vw, 44px); font-weight: 800;
+      letter-spacing: -1.5px; line-height: 1.1;
+      background: linear-gradient(135deg, #e8f0fe 0%, #4f8ef7 50%, #06b6d4 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 12px;
+    }
+    .hero-sub {
+      color: var(--text-secondary); font-size: 15px; max-width: 600px; margin: 0 auto 32px;
+    }
+
+    /* ── Stat bar ── */
+    .stat-bar {
+      display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px; margin-bottom: 40px;
+    }
+    .stat-item {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 16px 20px;
+      text-align: center; transition: all .3s;
+      cursor: default;
+    }
+    .stat-item:hover { border-color: var(--border-bright); transform: translateY(-2px); }
+    .stat-value { font-size: 22px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+    .stat-label { font-size: 11px; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: .5px; }
+    .c-blue   { color: var(--accent-blue); }
+    .c-green  { color: var(--accent-green); }
+    .c-purple { color: var(--accent-purple); }
+    .c-cyan   { color: var(--accent-cyan); }
+    .c-orange { color: var(--accent-orange); }
+
+    /* ── Grid ── */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+    .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+    @media(max-width:1024px) { .grid-3 { grid-template-columns: 1fr 1fr; } }
+    @media(max-width:768px)  { .grid-2,.grid-3 { grid-template-columns: 1fr; } }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 24px;
+      box-shadow: var(--shadow-card);
+      transition: all .3s;
+    }
+    .card:hover { border-color: var(--border-bright); }
+    .card-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 20px;
+    }
+    .card-title {
+      display: flex; align-items: center; gap: 10px;
+      font-size: 14px; font-weight: 600; color: var(--text-primary);
+    }
+    .card-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; flex-shrink: 0;
+    }
+    .icon-blue   { background: rgba(79,142,247,0.15); }
+    .icon-green  { background: rgba(16,185,129,0.15); }
+    .icon-purple { background: rgba(139,92,246,0.15); }
+    .icon-cyan   { background: rgba(6,182,212,0.15); }
+    .icon-orange { background: rgba(245,158,11,0.15); }
+
+    /* ── Form elements ── */
+    input, textarea, select {
+      width: 100%; background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 10px 14px;
+      color: var(--text-primary); font-size: 13px; font-family: 'Inter', sans-serif;
+      outline: none; transition: border-color .2s;
+      resize: vertical;
+    }
+    input:focus, textarea:focus, select:focus {
+      border-color: var(--accent-blue); background: rgba(79,142,247,0.06);
+    }
+    input::placeholder, textarea::placeholder { color: var(--text-muted); }
+
+    label { display: block; font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
+
+    .form-group { margin-bottom: 14px; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 10px 20px; border-radius: var(--radius-sm);
+      font-size: 13px; font-weight: 600; cursor: pointer; border: none;
+      transition: all .25s; white-space: nowrap; position: relative; overflow: hidden;
+    }
+    .btn::after {
+      content: ''; position: absolute; inset: 0;
+      background: rgba(255,255,255,0); transition: background .2s;
+    }
+    .btn:hover::after { background: rgba(255,255,255,0.07); }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: var(--gradient-blue); color: #fff; box-shadow: 0 4px 15px rgba(79,142,247,0.35); }
+    .btn-green   { background: var(--gradient-green); color: #fff; box-shadow: 0 4px 15px rgba(16,185,129,0.35); }
+    .btn-purple  { background: var(--gradient-purple); color: #fff; box-shadow: 0 4px 15px rgba(139,92,246,0.35); }
+    .btn-orange  { background: linear-gradient(135deg, #f59e0b, #ef4444); color: #fff; box-shadow: 0 4px 15px rgba(245,158,11,0.35); }
+    .btn-ghost   { background: var(--bg-card); color: var(--text-secondary); border: 1px solid var(--border); }
+    .btn-sm      { padding: 7px 14px; font-size: 12px; }
+    .btn-full    { width: 100%; justify-content: center; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* ── Output areas ── */
+    .output-area {
+      background: rgba(0,0,0,0.3); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 16px;
+      font-family: 'JetBrains Mono', monospace; font-size: 12px;
+      color: var(--text-secondary); min-height: 80px; max-height: 320px;
+      overflow-y: auto; white-space: pre-wrap; word-break: break-word;
+      line-height: 1.6;
+    }
+    .output-area:empty::before { content: 'Results will appear here...'; color: var(--text-muted); }
+
+    /* ── Stream area ── */
+    #streamOutput {
+      min-height: 120px; color: var(--accent-cyan);
+      font-family: 'Inter', sans-serif; font-size: 14px;
+      line-height: 1.7;
+    }
+    .stream-token { animation: fadeIn .1s ease; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(2px)} to{opacity:1;transform:none} }
+
+    /* ── Chunks preview ── */
+    .chunk-card {
+      background: rgba(0,0,0,0.25); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 12px; margin-bottom: 8px;
+    }
+    .chunk-score {
+      display: inline-block; padding: 2px 8px; border-radius: 100px;
+      font-size: 11px; font-weight: 600; background: rgba(16,185,129,0.15);
+      color: var(--accent-green); margin-bottom: 6px;
+    }
+    .chunk-text { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+    .chunk-title { font-size: 11px; color: var(--accent-blue); margin-bottom: 4px; font-weight: 500; }
+    .embedding-badge {
+      display: inline-block; padding: 2px 8px; border-radius: 100px;
+      font-size: 10px; background: rgba(139,92,246,0.15); color: var(--accent-purple);
+      margin-left: 6px;
+    }
+
+    /* ── Status badge ── */
+    .badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px; border-radius: 100px; font-size: 11px; font-weight: 600;
+    }
+    .badge-green  { background: rgba(16,185,129,0.15); color: var(--accent-green); }
+    .badge-blue   { background: rgba(79,142,247,0.15); color: var(--accent-blue); }
+    .badge-orange { background: rgba(245,158,11,0.15); color: var(--accent-orange); }
+    .badge-red    { background: rgba(239,68,68,0.15);  color: var(--accent-red); }
+
+    /* ── Progress bar ── */
+    .progress-bar { height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; margin-top: 8px; }
+    .progress-fill { height: 100%; border-radius: 2px; transition: width .5s ease; }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+    .tab {
+      padding: 7px 16px; border-radius: 8px; font-size: 12px; font-weight: 500;
+      cursor: pointer; border: 1px solid transparent; color: var(--text-muted);
+      background: none; transition: all .2s;
+    }
+    .tab.active { background: rgba(79,142,247,0.15); border-color: rgba(79,142,247,0.4); color: var(--accent-blue); }
+
+    /* ── Pipeline viz ── */
+    .pipeline-step {
+      display: flex; align-items: flex-start; gap: 12px; margin-bottom: 10px; padding: 12px;
+      background: rgba(0,0,0,0.2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+    }
+    .pipeline-num {
+      width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700; flex-shrink: 0; margin-top: 1px;
+    }
+    .pipeline-content .step-title { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+    .pipeline-content .step-desc  { font-size: 11px; color: var(--text-muted); }
+
+    /* ── Analytics table ── */
+    .analytics-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    .analytics-table th {
+      padding: 10px 12px; text-align: left; font-weight: 600; font-size: 11px;
+      color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px;
+      border-bottom: 1px solid var(--border);
+    }
+    .analytics-table td {
+      padding: 10px 12px; border-bottom: 1px solid rgba(99,179,255,0.06);
+      color: var(--text-secondary);
+    }
+    .analytics-table tr:last-child td { border-bottom: none; }
+    .analytics-table tr:hover td { background: rgba(79,142,247,0.04); }
+
+    /* ── Spinner ── */
+    .spinner {
+      width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.2);
+      border-top-color: #fff; border-radius: 50%;
+      animation: spin .6s linear infinite; display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Log feed ── */
+    .log-item {
+      padding: 8px 12px; border-radius: 6px; margin-bottom: 4px; font-size: 12px;
+      display: flex; align-items: baseline; gap: 8px;
+      animation: slideIn .3s ease;
+    }
+    @keyframes slideIn { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:none} }
+    .log-time { color: var(--text-muted); font-family: 'JetBrains Mono', monospace; font-size: 10px; flex-shrink: 0; }
+    .log-info  { background: rgba(79,142,247,0.08);  border-left: 2px solid var(--accent-blue); }
+    .log-success { background: rgba(16,185,129,0.08); border-left: 2px solid var(--accent-green); }
+    .log-warn  { background: rgba(245,158,11,0.08);  border-left: 2px solid var(--accent-orange); }
+    .log-error { background: rgba(239,68,68,0.08);   border-left: 2px solid var(--accent-red); }
+
+    /* ── Footer ── */
+    footer {
+      text-align: center; padding: 32px 24px; margin-top: 48px;
+      border-top: 1px solid var(--border); color: var(--text-muted); font-size: 12px;
+    }
+    footer a { color: var(--accent-blue); text-decoration: none; }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(99,179,255,0.2); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(99,179,255,0.4); }
+
+    /* Notification toast */
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 14px 20px;
+      font-size: 13px; box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+      transform: translateY(100px); opacity: 0;
+      transition: all .3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      max-width: 360px;
+    }
+    .toast.show { transform: translateY(0); opacity: 1; }
+    .toast-title { font-weight: 600; margin-bottom: 4px; }
+    .toast-msg { font-size: 12px; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+<!-- ─── HEADER ─────────────────────────────────── -->
+<header>
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-icon">⚡</div>
+      <div>
+        <div class="logo-text">RAG Engine</div>
+        <div class="logo-sub">Cloud-Native · Kubernetes · MongoDB</div>
+      </div>
+    </div>
+    <div class="header-links">
+      <a class="header-link active" href="#ingest-section">Ingest</a>
+      <a class="header-link" href="#query-section">Query</a>
+      <a class="header-link" href="#analytics-section">Analytics</a>
+      <a class="header-link" href="http://localhost:3001" target="_blank" id="grafanaLink">Grafana 📊</a>
+      <a class="header-link" href="http://localhost:9090" target="_blank">Prometheus 🔥</a>
+    </div>
+  </div>
+</header>
+
+<!-- ─── HERO ───────────────────────────────────── -->
+<div class="container">
+  <div class="hero">
+    <div class="hero-badge">LIVE DEMO — INT378 Evaluation Mode</div>
+    <h1 class="hero-title">Cloud-Native Distributed RAG Engine</h1>
+    <p class="hero-sub">Kubernetes HPA Autoscaling · MongoDB Vector Search · 768-Dim Embeddings · Real-time Prometheus/Grafana Observability</p>
+  </div>
+
+  <!-- ─── STAT BAR ─────────────────────────────── -->
+  <div class="stat-bar" id="statBar">
+    <div class="stat-item">
+      <div class="stat-value c-green" id="statDocs">–</div>
+      <div class="stat-label">Documents Indexed</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value c-blue" id="statChunks">–</div>
+      <div class="stat-label">768-Dim Chunks</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value c-purple" id="statQueue">–</div>
+      <div class="stat-label">Redis Queue Depth</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value c-cyan" id="statLatency">–</div>
+      <div class="stat-label">Avg Embed Latency (ms)</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-value c-orange" id="statStatus">⬤ UP</div>
+      <div class="stat-label">System Status</div>
+    </div>
+  </div>
+
+  <!-- ─── ROW 1: Ingest + Pipeline Viz ──────────── -->
+  <div class="grid-2" id="ingest-section">
+    <!-- INGEST CARD -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon icon-blue">📄</div>
+          Document Ingest
+        </div>
+        <div class="badge badge-blue">POST /api/ingest</div>
+      </div>
+
+      <div class="form-group">
+        <label for="ingestTitle">Document Title</label>
+        <input id="ingestTitle" type="text" placeholder="e.g. Kubernetes HPA Deep Dive" value="Kubernetes HPA Architecture" />
+      </div>
+      <div class="form-group">
+        <label for="ingestTags">Tags (comma-separated)</label>
+        <input id="ingestTags" type="text" placeholder="kubernetes, autoscaling, hpa" value="kubernetes, autoscaling, hpa" />
+      </div>
+      <div class="form-group">
+        <label for="ingestText">Document Content</label>
+        <textarea id="ingestText" rows="5" placeholder="Paste document content here...">Kubernetes Horizontal Pod Autoscaler (HPA) automatically scales the number of pod replicas in a deployment based on observed CPU utilization, memory usage, or custom metrics. The HPA controller queries metrics from the Metrics Server every 15 seconds by default. When the observed metric exceeds the target threshold (e.g., 65% CPU), HPA calculates the desired replicas using: desiredReplicas = ceil(currentReplicas * (currentMetric / desiredMetric)). Integration with KEDA enables scaling on external metrics like Redis queue depth, making it perfect for RAG pipeline workloads.</textarea>
+      </div>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn btn-primary" id="btnIngest" onclick="ingestDocument()">
+          <span id="ingestSpinner" class="spinner"></span>
+          ⬆ Ingest Document
+        </button>
+        <button class="btn btn-ghost btn-sm" onclick="fillSample('terraform')">Sample: Terraform</button>
+        <button class="btn btn-ghost btn-sm" onclick="fillSample('mongodb')">Sample: MongoDB</button>
+      </div>
+
+      <div class="output-area" id="ingestOutput" style="margin-top:16px;"></div>
+    </div>
+
+    <!-- PIPELINE VISUALIZATION -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon icon-purple">🔄</div>
+          RAG Ingestion Pipeline
+        </div>
+        <div class="badge badge-green">Live Status</div>
+      </div>
+
+      <div class="pipeline-step">
+        <div class="pipeline-num" style="background:rgba(79,142,247,0.2);color:var(--accent-blue)">1</div>
+        <div class="pipeline-content">
+          <div class="step-title">📤 S3 Upload Simulation</div>
+          <div class="step-desc">Generates <code>uploads/YYYY/MM/uuid_title.txt</code> key → ETag computed → Logged to <code>s3_uploads_total</code> metric</div>
+        </div>
+      </div>
+      <div class="pipeline-step">
+        <div class="pipeline-num" style="background:rgba(16,185,129,0.2);color:var(--accent-green)">2</div>
+        <div class="pipeline-content">
+          <div class="step-title">🍃 MongoDB Document Create</div>
+          <div class="step-desc">Inserts parent document with $jsonSchema validation · Referencing Pattern: user_ref (ObjectId) → User collection</div>
+        </div>
+      </div>
+      <div class="pipeline-step">
+        <div class="pipeline-num" style="background:rgba(245,158,11,0.2);color:var(--accent-orange)">3</div>
+        <div class="pipeline-content">
+          <div class="step-title">⚡ Redis Queue Push</div>
+          <div class="step-desc">RPUSH job JSON to <code>rag_ingest_queue</code> · Queue depth tracked by HPA custom metric</div>
+        </div>
+      </div>
+      <div class="pipeline-step">
+        <div class="pipeline-num" style="background:rgba(139,92,246,0.2);color:var(--accent-purple)">4</div>
+        <div class="pipeline-content">
+          <div class="step-title">🧠 ML Worker → 768-Dim Embedding</div>
+          <div class="step-desc">SHA-256/MD5 trigonometric projection → L2-normalize → BSON array [768 × float32] stored per chunk</div>
+        </div>
+      </div>
+      <div class="pipeline-step">
+        <div class="pipeline-num" style="background:rgba(6,182,212,0.2);color:var(--accent-cyan)">5</div>
+        <div class="pipeline-content">
+          <div class="step-title">✅ MongoDB Chunks Collection</div>
+          <div class="step-desc">EMBEDDING PATTERN: Each chunk stored with doc_ref ObjectId · Cosine similarity search ready</div>
+        </div>
+      </div>
+
+      <!-- Live event log -->
+      <div style="margin-top:16px;">
+        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">⚡ Live Event Log</div>
+        <div id="eventLog" style="max-height:120px;overflow-y:auto;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── ROW 2: Query + SSE Stream ─────────────── -->
+  <div class="grid-2" id="query-section">
+    <!-- QUERY CARD -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon icon-cyan">🔍</div>
+          RAG Query
+        </div>
+        <div class="badge badge-blue">POST /api/query</div>
+      </div>
+
+      <div class="form-group">
+        <label for="queryInput">Natural Language Question</label>
+        <input id="queryInput" type="text" placeholder="Ask about your documents..." value="How does Kubernetes HPA calculate desired replicas?" />
+      </div>
+      <div class="form-group">
+        <label for="topK">Top-K Results</label>
+        <select id="topK">
+          <option value="3">3 chunks</option>
+          <option value="5" selected>5 chunks</option>
+          <option value="10">10 chunks</option>
+        </select>
+      </div>
+
+      <div style="display:flex;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-green" onclick="runQuery()">
+          <span id="querySpinner" class="spinner"></span>
+          🔍 Vector Search
+        </button>
+        <button class="btn btn-primary" onclick="startStream()">
+          ⚡ Stream Response (SSE)
+        </button>
+      </div>
+
+      <!-- Retrieved chunks -->
+      <div style="margin-top:16px;" id="chunksSection">
+        <div style="font-size:12px;font-weight:600;color:var(--text-secondary);margin-bottom:8px;">Retrieved Chunks (768-dim BSON)</div>
+        <div id="chunksDisplay"></div>
+      </div>
+    </div>
+
+    <!-- STREAM OUTPUT -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon icon-green">🌊</div>
+          SSE Streaming Response
+        </div>
+        <div class="badge badge-green" id="streamStatus">Idle</div>
+      </div>
+
+      <div class="output-area" id="streamOutput" style="min-height:220px;"></div>
+
+      <div style="margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <div id="streamStats" style="font-size:11px;color:var(--text-muted);flex:1;"></div>
+        <button class="btn btn-ghost btn-sm" onclick="clearStream()">Clear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── ROW 3: HPA Spike + Analytics ──────────── -->
+  <div class="grid-2">
+    <!-- HPA TRAFFIC SPIKE -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon icon-orange">🚀</div>
+          HPA Load Test — Traffic Spike
+        </div>
+        <div class="badge badge-orange">POST /api/simulate-spike</div>
+      </div>
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:16px;">
+        Fires a burst of concurrent ingest + query requests to increase Redis queue depth and demonstrate Kubernetes HPA + Prometheus/Grafana scaling in real time.
+      </p>
+      <div class="grid-2" style="gap:12px;margin-bottom:16px;">
+        <div class="form-group" style="margin:0">
+          <label>Concurrency</label>
+          <select id="spikeConc">
+            <option value="5">5 parallel</option>
+            <option value="10" selected>10 parallel</option>
+            <option value="20">20 parallel</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label>Rounds</label>
+          <select id="spikeRounds">
+            <option value="1">1 round</option>
+            <option value="3" selected>3 rounds</option>
+            <option value="5">5 rounds</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-orange btn-full" id="btnSpike" onclick="triggerSpike()">
+        <span id="spikeSpinner" class="spinner"></span>
+        🚀 Trigger Traffic Spike (HPA Load Test)
+      </button>
+      <div class="output-area" id="spikeOutput" style="margin-top:16px;"></div>
+
+      <div style="margin-top:16px;padding:12px;background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.2);border-radius:var(--radius-sm);">
+        <div style="font-size:11px;font-weight:600;color:var(--accent-orange);margin-bottom:6px;">📊 Watch Grafana Live</div>
+        <div style="font-size:11px;color:var(--text-muted);">After spike: <a href="http://localhost:3001" target="_blank" style="color:var(--accent-blue)">localhost:3001</a> — Redis Queue Depth panel should spike &gt; 50 (HPA trigger threshold)</div>
+      </div>
+    </div>
+
+    <!-- LIVE ANALYTICS -->
+    <div class="card" id="analytics-section">
+      <div class="card-header">
+        <div class="card-title">
+          <div class="card-icon icon-purple">📈</div>
+          MongoDB Aggregation Analytics
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="loadAnalytics()">🔄 Refresh</button>
+      </div>
+
+      <div class="tabs">
+        <button class="tab active" id="tabStatus" onclick="switchTab('status')">By Status</button>
+        <button class="tab" id="tabTags" onclick="switchTab('tags')">Top Tags</button>
+        <button class="tab" id="tabIndex" onclick="switchTab('index')">Index Explain</button>
+        <button class="tab" id="tabWorker" onclick="switchTab('worker')">ML Stats</button>
+      </div>
+
+      <div id="analyticsContent">
+        <div style="color:var(--text-muted);font-size:13px;text-align:center;padding:32px;">
+          Click <strong>Refresh</strong> to load live MongoDB aggregation pipeline results
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── ROW 4: API Reference ────────────────────── -->
+  <div class="card" style="margin-bottom:20px;">
+    <div class="card-header">
+      <div class="card-title">
+        <div class="card-icon icon-cyan">📡</div>
+        API Endpoints Reference
+      </div>
+      <div class="badge badge-green">7 Endpoints</div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table class="analytics-table">
+        <thead>
+          <tr>
+            <th>Method</th><th>Endpoint</th><th>Description</th><th>Test</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td><span class="badge badge-green">GET</span></td><td><code>/health</code></td><td>Liveness/Readiness probe — MongoDB, Redis, Worker status</td><td><button class="btn btn-ghost btn-sm" onclick="testEndpoint('GET','/health')">Test</button></td></tr>
+          <tr><td><span class="badge badge-blue">GET</span></td><td><code>/metrics</code></td><td>Prometheus OpenMetrics — CPU, memory, custom counters</td><td><a href="/metrics" target="_blank" class="btn btn-ghost btn-sm">Open</a></td></tr>
+          <tr><td><span class="badge badge-orange">POST</span></td><td><code>/api/ingest</code></td><td>Ingest document → S3 sim → MongoDB → Redis → ML Worker embed</td><td><button class="btn btn-ghost btn-sm" onclick="ingestDocument()">Run</button></td></tr>
+          <tr><td><span class="badge badge-orange">POST</span></td><td><code>/api/query</code></td><td>Vector search over 768-dim chunks → top-k results + grounded answer</td><td><button class="btn btn-ghost btn-sm" onclick="runQuery()">Run</button></td></tr>
+          <tr><td><span class="badge badge-green">GET</span></td><td><code>/api/query/stream?q=…</code></td><td>SSE streaming RAG response token-by-token</td><td><button class="btn btn-ghost btn-sm" onclick="startStream()">Stream</button></td></tr>
+          <tr><td><span class="badge badge-green">GET</span></td><td><code>/api/analytics</code></td><td>MongoDB aggregation pipeline — $group, $lookup, $avg, explain()</td><td><button class="btn btn-ghost btn-sm" onclick="loadAnalytics()">Load</button></td></tr>
+          <tr><td><span class="badge badge-orange">POST</span></td><td><code>/api/simulate-spike</code></td><td>Burst concurrent requests → HPA scaling demo + Grafana spike</td><td><button class="btn btn-ghost btn-sm" onclick="triggerSpike()">Spike!</button></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast">
+  <div class="toast-title" id="toastTitle"></div>
+  <div class="toast-msg"   id="toastMsg"></div>
+</div>
+
+<footer>
+  <div class="container">
+    <p>Cloud-Native RAG Engine · INT378 · Abhay Jaiswal · Stack: Node.js + FastAPI + MongoDB + Redis + Prometheus + Grafana + K8s</p>
+    <p style="margin-top:6px;"><a href="http://localhost:3001" target="_blank">Grafana</a> · <a href="http://localhost:9090" target="_blank">Prometheus</a> · <a href="/metrics" target="_blank">Raw Metrics</a> · <a href="/health" target="_blank">Health</a></p>
+  </div>
+</footer>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// UTILITIES
+// ═══════════════════════════════════════════════════════
+function toast(title, msg, color='var(--accent-blue)') {
+  const el = document.getElementById('toast');
+  document.getElementById('toastTitle').textContent = title;
+  document.getElementById('toastMsg').textContent = msg;
+  el.style.borderColor = color;
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 4000);
+}
+
+function addLog(msg, type='info') {
+  const log = document.getElementById('eventLog');
+  const div = document.createElement('div');
+  div.className = `log-item log-${type}`;
+  const t = new Date().toTimeString().slice(0,8);
+  div.innerHTML = `<span class="log-time">${t}</span><span>${msg}</span>`;
+  log.prepend(div);
+  while (log.children.length > 15) log.removeChild(log.lastChild);
+}
+
+function setOutput(id, data) {
+  const el = document.getElementById(id);
+  if (typeof data === 'object') {
+    el.textContent = JSON.stringify(data, null, 2);
+  } else {
+    el.textContent = data;
+  }
+}
+
+function setLoading(btnId, spinnerId, loading) {
+  const btn = document.getElementById(btnId);
+  const sp  = document.getElementById(spinnerId);
+  if (btn)  btn.disabled = loading;
+  if (sp)   sp.style.display = loading ? 'block' : 'none';
+}
+
+// ═══════════════════════════════════════════════════════
+// STAT BAR AUTO-REFRESH
+// ═══════════════════════════════════════════════════════
+async function refreshStats() {
+  try {
+    const r = await fetch('/api/analytics');
+    if (!r.ok) return;
+    const d = await r.json();
+    const stats = d.collection_stats || {};
+    document.getElementById('statDocs').textContent = stats.total_documents ?? '–';
+    document.getElementById('statChunks').textContent = stats.total_chunks ?? '–';
+    document.getElementById('statQueue').textContent = d.queue_depth ?? '–';
+
+    const mlStats = d.ml_worker_analytics || {};
+    const avgLat = mlStats.avg_latency_ms ?? mlStats.average_latency_ms;
+    document.getElementById('statLatency').textContent = avgLat != null ? Number(avgLat).toFixed(1) : '–';
+    document.getElementById('statStatus').textContent = '⬤ UP';
+    document.getElementById('statStatus').style.color = 'var(--accent-green)';
+  } catch {
+    document.getElementById('statStatus').textContent = '⬤ ERR';
+    document.getElementById('statStatus').style.color = 'var(--accent-red)';
+  }
+}
+setInterval(refreshStats, 5000);
+refreshStats();
+
+// ═══════════════════════════════════════════════════════
+// SAMPLE FILL
+// ═══════════════════════════════════════════════════════
+const samples = {
+  terraform: {
+    title: 'Terraform IaC AWS EKS Deployment',
+    tags: 'terraform, aws, iac, eks, kubernetes',
+    text: 'Terraform enables declarative infrastructure-as-code for AWS resources. The EKS module provisions managed Kubernetes clusters with node groups, OIDC provider integration, and add-ons like CoreDNS, kube-proxy, and Amazon VPC CNI. Remote state is stored in S3 with DynamoDB locking to prevent concurrent modifications. Workspaces allow environment isolation (dev/staging/prod). The VPC module creates public and private subnets across 3 AZs with NAT gateways for private egress and Internet Gateways for public routing.',
+  },
+  mongodb: {
+    title: 'MongoDB Atlas Vector Search HNSW Index',
+    tags: 'mongodb, vector, atlas, hnsw, embeddings',
+    text: 'MongoDB Atlas Vector Search uses Hierarchical Navigable Small World (HNSW) graphs for approximate nearest neighbor search over high-dimensional embeddings. A vector search index is defined with dimensions (e.g., 768 for MPNet), similarity metric (cosine, euclidean, dotProduct), and numCandidates. The $vectorSearch aggregation stage retrieves the top-k most semantically similar documents using pre-computed float32 embedding arrays. This enables RAG (Retrieval-Augmented Generation) workflows where query embeddings are matched against stored document chunk embeddings at <10ms latency.',
+  },
+};
+
+function fillSample(key) {
+  const s = samples[key];
+  if (!s) return;
+  document.getElementById('ingestTitle').value = s.title;
+  document.getElementById('ingestTags').value  = s.tags;
+  document.getElementById('ingestText').value  = s.text;
+  addLog(`Loaded sample: ${s.title}`, 'info');
+}
+
+// ═══════════════════════════════════════════════════════
+// INGEST
+// ═══════════════════════════════════════════════════════
+async function ingestDocument() {
+  const title = document.getElementById('ingestTitle').value.trim();
+  const text  = document.getElementById('ingestText').value.trim();
+  const tags  = document.getElementById('ingestTags').value.split(',').map(t => t.trim()).filter(Boolean);
+
+  if (!title || !text) { toast('Validation Error', 'Title and text are required', 'var(--accent-red)'); return; }
+
+  setLoading('btnIngest', 'ingestSpinner', true);
+  addLog(`Ingesting: "${title}"`, 'info');
+  setOutput('ingestOutput', '⏳ Uploading to S3, creating MongoDB document, pushing to Redis queue...');
+
+  try {
+    const r = await fetch('/api/ingest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title, text, tags }),
+    });
+    const d = await r.json();
+    setOutput('ingestOutput', d);
+    addLog(`✅ Ingested: ${d.chunk_count || d.embed_result?.chunk_count || '?'} chunks · S3: ${d.s3?.key}`, 'success');
+    toast('Document Ingested ✓', `${d.embed_result?.chunk_count || '?'} chunks embedded at 768-dim`, 'var(--accent-green)');
+    refreshStats();
+  } catch (e) {
+    setOutput('ingestOutput', `Error: ${e.message}`);
+    addLog(`❌ Ingest failed: ${e.message}`, 'error');
+    toast('Ingest Failed', e.message, 'var(--accent-red)');
+  } finally {
+    setLoading('btnIngest', 'ingestSpinner', false);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// QUERY
+// ═══════════════════════════════════════════════════════
+async function runQuery() {
+  const q     = document.getElementById('queryInput').value.trim();
+  const top_k = parseInt(document.getElementById('topK').value);
+  if (!q) { toast('Validation', 'Please enter a question', 'var(--accent-orange)'); return; }
+
+  setLoading('', 'querySpinner', true);
+  document.getElementById('chunksDisplay').innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px;">⏳ Computing 768-dim query embedding and searching MongoDB...</div>';
+
+  try {
+    const r = await fetch('/api/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q, top_k }),
+    });
+    const d = await r.json();
+    renderChunks(d.results);
+    addLog(`🔍 Query answered in ${d.latency_ms}ms · ${(d.results?.results || []).length} chunks retrieved`, 'success');
+  } catch (e) {
+    document.getElementById('chunksDisplay').innerHTML = `<div style="color:var(--accent-red);font-size:12px;">${e.message}</div>`;
+    addLog(`❌ Query failed: ${e.message}`, 'error');
+  } finally {
+    const sp = document.getElementById('querySpinner');
+    if (sp) sp.style.display = 'none';
+  }
+}
+
+function renderChunks(data) {
+  const chunks  = (data?.results || []);
+  const answer  = data?.answer || '';
+  const div     = document.getElementById('chunksDisplay');
+  if (chunks.length === 0) {
+    div.innerHTML = '<div style="color:var(--text-muted);font-size:12px;padding:8px;">No chunks found. Please ingest documents first.</div>';
+    return;
+  }
+  let html = '';
+  if (answer) {
+    html += `<div style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:8px;padding:12px;margin-bottom:12px;font-size:13px;color:var(--text-primary);line-height:1.6;">${answer}</div>`;
+  }
+  chunks.slice(0, 5).forEach((c, i) => {
+    const score = typeof c.score === 'number' ? (c.score * 100).toFixed(1) + '%' : 'N/A';
+    html += `
+      <div class="chunk-card">
+        <div class="chunk-title">${c.doc_title || 'Document'}<span class="embedding-badge">768-dim</span></div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;">
+          <span class="chunk-score">Cosine: ${score}</span>
+          <span style="font-size:10px;color:var(--text-muted);">Chunk #${c.chunk_idx ?? i}</span>
+        </div>
+        <div class="chunk-text">${(c.text || '').slice(0, 250)}${(c.text||'').length > 250 ? '…' : ''}</div>
+      </div>`;
+  });
+  div.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════
+// SSE STREAM
+// ═══════════════════════════════════════════════════════
+let eventSource = null;
+function startStream() {
+  const q = document.getElementById('queryInput').value.trim();
+  if (!q) { toast('Validation', 'Enter a question first', 'var(--accent-orange)'); return; }
+
+  if (eventSource) { eventSource.close(); }
+  clearStream();
+
+  const statusEl = document.getElementById('streamStatus');
+  statusEl.textContent = '● Streaming...';
+  statusEl.className   = 'badge badge-green';
+
+  const url = `/api/query/stream?q=${encodeURIComponent(q)}`;
+  eventSource = new EventSource(url);
+  let tokenCount = 0;
+  const t0 = Date.now();
+
+  eventSource.addEventListener('retrieved_chunks', (e) => {
+    const data = JSON.parse(e.data);
+    const streamOut = document.getElementById('streamOutput');
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'font-size:11px;color:var(--text-muted);margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.06);';
+    hdr.textContent   = `📚 Retrieved ${data.chunks.length} context chunks:`;
+    streamOut.appendChild(hdr);
+    data.chunks.forEach(c => {
+      const cd = document.createElement('div');
+      cd.style.cssText = 'font-size:11px;color:var(--text-muted);margin-bottom:4px;padding-left:8px;border-left:2px solid var(--accent-purple);';
+      cd.textContent = `[${(c.score*100).toFixed(1)}% | ${c.doc_title}] ${(c.text||'').slice(0,80)}...`;
+      streamOut.appendChild(cd);
+    });
+    const sep = document.createElement('div');
+    sep.style.cssText = 'margin:12px 0 6px;font-size:11px;color:var(--text-muted);';
+    sep.textContent   = '🤖 Grounded Answer:';
+    streamOut.appendChild(sep);
+  });
+
+  eventSource.addEventListener('token', (e) => {
+    const data = JSON.parse(e.data);
+    const span = document.createElement('span');
+    span.className   = 'stream-token';
+    span.textContent = data.token;
+    document.getElementById('streamOutput').appendChild(span);
+    tokenCount++;
+    document.getElementById('streamStats').textContent = `${tokenCount} tokens streamed`;
+    document.getElementById('streamOutput').scrollTop = 999999;
+  });
+
+  eventSource.addEventListener('done', (e) => {
+    const data = JSON.parse(e.data);
+    const latency = Date.now() - t0;
+    document.getElementById('streamStats').textContent = `✓ ${data.total_tokens} tokens · ${latency}ms`;
+    statusEl.textContent = '✓ Complete';
+    statusEl.className   = 'badge badge-green';
+    eventSource.close(); eventSource = null;
+    addLog(`🌊 Stream complete: ${data.total_tokens} tokens in ${latency}ms`, 'success');
+  });
+
+  eventSource.addEventListener('error', (e) => {
+    try { const d = JSON.parse(e.data); addLog(`❌ Stream error: ${d.message}`, 'error'); } catch {}
+    statusEl.textContent = '⚠ Error';
+    statusEl.className   = 'badge badge-red';
+    if (eventSource) { eventSource.close(); eventSource = null; }
+  });
+
+  eventSource.onerror = () => {
+    statusEl.textContent = '● Idle';
+    statusEl.className   = 'badge badge-blue';
+    if (eventSource) { eventSource.close(); eventSource = null; }
+  };
+}
+
+function clearStream() {
+  document.getElementById('streamOutput').innerHTML = '';
+  document.getElementById('streamStats').textContent = '';
+  document.getElementById('streamStatus').textContent = 'Idle';
+}
+
+// ═══════════════════════════════════════════════════════
+// TRAFFIC SPIKE
+// ═══════════════════════════════════════════════════════
+async function triggerSpike() {
+  const concurrency = parseInt(document.getElementById('spikeConc').value);
+  const rounds      = parseInt(document.getElementById('spikeRounds').value);
+
+  setLoading('btnSpike', 'spikeSpinner', true);
+  setOutput('spikeOutput', `⏳ Firing ${concurrency * rounds * 2} concurrent requests (${rounds} rounds × ${concurrency} concurrency × 2 operations)...`);
+  addLog(`🚀 Traffic spike started: concurrency=${concurrency}, rounds=${rounds}`, 'warn');
+
+  try {
+    const r = await fetch('/api/simulate-spike', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ concurrency, rounds }),
+      // Long timeout for spike
+    });
+    const d = await r.json();
+    setOutput('spikeOutput', d);
+    addLog(`✅ Spike complete: ${d.ingest_count} ingests + ${d.query_count} queries · Queue: ${d.queue_depth}`, 'success');
+    toast('Spike Complete 🚀', `Queue depth: ${d.queue_depth} — Check Grafana!`, 'var(--accent-orange)');
+    refreshStats();
+  } catch (e) {
+    setOutput('spikeOutput', `Error: ${e.message}`);
+    addLog(`❌ Spike failed: ${e.message}`, 'error');
+  } finally {
+    setLoading('btnSpike', 'spikeSpinner', false);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// ANALYTICS
+// ═══════════════════════════════════════════════════════
+let analyticsData = null;
+let activeTab = 'status';
+
+async function loadAnalytics() {
+  document.getElementById('analyticsContent').innerHTML = '<div style="text-align:center;padding:24px;color:var(--text-muted);">⏳ Running MongoDB aggregation pipelines...</div>';
+  try {
+    const r = await fetch('/api/analytics');
+    analyticsData = await r.json();
+    switchTab(activeTab);
+    addLog('📊 Analytics refreshed from MongoDB aggregation pipeline', 'info');
+  } catch (e) {
+    document.getElementById('analyticsContent').innerHTML = `<div style="color:var(--accent-red);font-size:12px;">${e.message}</div>`;
+  }
+}
+
+function switchTab(tab) {
+  activeTab = tab;
+  ['status','tags','index','worker'].forEach(t => {
+    const el = document.getElementById(`tab${t.charAt(0).toUpperCase()+t.slice(1)}`);
+    if (el) el.className = `tab${t === tab ? ' active' : ''}`;
+  });
+  if (!analyticsData) { loadAnalytics(); return; }
+  const content = document.getElementById('analyticsContent');
+  const d = analyticsData;
+
+  if (tab === 'status') {
+    const rows = (d.documents_by_status || []).map(r =>
+      `<tr><td><span class="badge badge-${r._id==='indexed'?'green':r._id==='processing'?'orange':'red'}">${r._id}</span></td><td>${r.count}</td><td>${(r.avg_chunks||0).toFixed(1)}</td></tr>`
+    ).join('') || '<tr><td colspan="3" style="color:var(--text-muted)">No documents yet — ingest some!</td></tr>';
+    content.innerHTML = `
+      <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px;">MongoDB Pipeline: $group by status → $avg chunk_count → $sum count</p>
+      <table class="analytics-table">
+        <thead><tr><th>Status</th><th>Count</th><th>Avg Chunks</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div style="margin-top:12px;padding:10px;background:rgba(0,0,0,0.2);border-radius:8px;">
+        <div style="font-size:11px;color:var(--text-muted);">Total: <strong style="color:var(--text-primary)">${d.collection_stats?.total_documents||0} docs</strong> · <strong style="color:var(--text-primary)">${d.collection_stats?.total_chunks||0} chunks</strong> · Queue: <strong style="color:var(--accent-orange)">${d.queue_depth||0}</strong></div>
+      </div>`;
+  }
+  else if (tab === 'tags') {
+    const rows = (d.top_tags || []).map((t,i) =>
+      `<tr><td>${i+1}</td><td><code>${t._id}</code></td><td>${t.count}</td>
+       <td><div class="progress-bar"><div class="progress-fill" style="width:${Math.min(100,(t.count/((d.top_tags[0]?.count||1)*1.1))*100)}%;background:var(--accent-blue);"></div></div></td></tr>`
+    ).join('') || '<tr><td colspan="4" style="color:var(--text-muted)">No tags indexed yet</td></tr>';
+    content.innerHTML = `
+      <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px;">MongoDB Pipeline: $unwind tags → $group _id:"$tags" → $sort count:-1 → $limit 10</p>
+      <table class="analytics-table">
+        <thead><tr><th>#</th><th>Tag</th><th>Count</th><th>Frequency</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+  else if (tab === 'index') {
+    const ex = d.explain_stats;
+    if (!ex) { content.innerHTML = '<div style="color:var(--text-muted);font-size:12px;">No explain stats available yet</div>'; return; }
+    content.innerHTML = `
+      <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px;">Index explain("executionStats") on {status:1, created_at:-1} compound index</p>
+      <table class="analytics-table">
+        <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Winning Plan Stage</td><td><code>${ex.winning_plan||'N/A'}</code></td></tr>
+          <tr><td>Docs Examined</td><td>${ex.total_docs_exam??'N/A'}</td></tr>
+          <tr><td>Keys Examined</td><td>${ex.total_keys_exam??'N/A'}</td></tr>
+          <tr><td>Execution Time (ms)</td><td>${ex.execution_ms??'N/A'}</td></tr>
+        </tbody>
+      </table>`;
+  }
+  else if (tab === 'worker') {
+    const ml = d.ml_worker_analytics || {};
+    content.innerHTML = `
+      <p style="font-size:11px;color:var(--text-muted);margin-bottom:12px;">ML Worker metrics from FastAPI + Prometheus + MongoDB chunks aggregation</p>
+      <table class="analytics-table">
+        <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+        <tbody>
+          <tr><td>Total Embeddings</td><td><strong style="color:var(--accent-blue)">${ml.total_embeddings||0}</strong></td></tr>
+          <tr><td>Total Chunks</td><td>${ml.total_chunks||0}</td></tr>
+          <tr><td>Avg Latency (ms)</td><td>${(ml.avg_latency_ms||ml.average_latency_ms||0).toFixed?.(2) || '–'}</td></tr>
+          <tr><td>Vector Dim</td><td><span class="badge badge-purple">768</span></td></tr>
+          <tr><td>Search Algorithm</td><td>Cosine Similarity (local) / HNSW Atlas</td></tr>
+          <tr><td>Chunking Strategy</td><td>Recursive · 512 chars · 64 overlap</td></tr>
+        </tbody>
+      </table>`;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// ENDPOINT TEST
+// ═══════════════════════════════════════════════════════
+async function testEndpoint(method, path) {
+  try {
+    const r = await fetch(path, { method });
+    const d = await r.json();
+    toast(`${method} ${path}`, `Status: ${r.status} — ${JSON.stringify(d).slice(0,80)}...`, 'var(--accent-cyan)');
+  } catch (e) {
+    toast('Error', e.message, 'var(--accent-red)');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════
+window.addEventListener('load', () => {
+  addLog('🚀 RAG Engine Dashboard loaded', 'success');
+  addLog('📡 Connecting to backend services...', 'info');
+  refreshStats();
+  // Auto-load analytics after 2s
+  setTimeout(loadAnalytics, 2000);
+});
+</script>
+</body>
+</html>

@@ -126,7 +126,7 @@ class EmbeddingEngine:
         self._hf_model = None
         if use_hf:
             try:
-                from sentence_transformers import SentenceTransformer
+                from sentence_transformers import SentenceTransformer  # type: ignore
                 logger.info("Loading HuggingFace all-mpnet-base-v2 model…")
                 self._hf_model = SentenceTransformer("all-mpnet-base-v2")
                 logger.info("HuggingFace model loaded successfully.")
@@ -143,6 +143,7 @@ class EmbeddingEngine:
         return self._deterministic_embed(text)
 
     def _hf_embed(self, text: str) -> list[float]:
+        assert self._hf_model is not None
         vec = self._hf_model.encode(text, convert_to_numpy=True, normalize_embeddings=True)
         return vec.astype("float32").tolist()
 
@@ -752,19 +753,19 @@ async def redis_queue_worker():
 
     while True:
         try:
-            if redis_client is None:
+            r_client = redis_client
+            if r_client is None:
                 await asyncio.sleep(10)
                 continue
 
             # Update queue depth metric
-            depth = redis_client.llen(QUEUE_NAME)
+            depth = r_client.llen(QUEUE_NAME)
             rag_worker_queue_depth.set(depth or 0)
 
             # BLPOP with 2s timeout (non-blocking async)
-            # FIX 3: use get_running_loop() instead of deprecated get_event_loop()
             item = await asyncio.get_running_loop().run_in_executor(
                 None,
-                lambda: redis_client.blpop(QUEUE_NAME, timeout=2),
+                lambda c=r_client: c.blpop(QUEUE_NAME, timeout=2) if c else None,
             )
 
             if item:
@@ -900,19 +901,24 @@ async def embed_document(req: EmbedRequest):
     if not chunks:
         raise HTTPException(400, "Text produced no chunks")
 
-    loop   = asyncio.get_running_loop()          # FIX 3
+    mgr = mongo_mgr
+    eng = embed_eng
+    if mgr is None or eng is None:
+        raise HTTPException(503, "Services not ready")
+
+    loop   = asyncio.get_running_loop()
     stored = await loop.run_in_executor(
         None,
-        lambda: mongo_mgr.store_chunks(req.doc_id, chunks, embed_eng),
+        lambda: mgr.store_chunks(req.doc_id, chunks, eng),
     )
 
     latency = (time.perf_counter() - t0) * 1000
 
-    # Update parent document  (loop variable already set above)
+    # Update parent document
     try:
         await loop.run_in_executor(
             None,
-            lambda: mongo_mgr.documents.update_one(
+            lambda: mgr.documents.update_one(
                 {"_id": ObjectId(req.doc_id)},
                 {"$set": {"chunk_count": stored, "status": "indexed", "updated_at": datetime.now(timezone.utc)}},
             ),
@@ -935,15 +941,17 @@ async def search(req: SearchRequest):
     Generate 768-dim embedding for query, run cosine similarity search
     over all MongoDB chunks, return top-k results + grounded answer.
     """
-    if not mongo_mgr or not embed_eng:
+    mgr = mongo_mgr
+    eng = embed_eng
+    if mgr is None or eng is None:
         raise HTTPException(503, "Services not ready")
 
     t0       = time.perf_counter()
-    q_vec    = embed_eng.embed(req.query)
-    loop     = asyncio.get_running_loop()        # FIX 3
+    q_vec    = eng.embed(req.query)
+    loop     = asyncio.get_running_loop()
     results, search_ms = await loop.run_in_executor(
         None,
-        lambda: mongo_mgr.cosine_search(q_vec, req.top_k),
+        lambda: mgr.cosine_search(q_vec, req.top_k),
     )
     total_ms = (time.perf_counter() - t0) * 1000
 
@@ -963,11 +971,12 @@ async def search(req: SearchRequest):
 @app.get("/analytics")
 async def analytics():
     """Return MongoDB aggregation pipeline statistics for the analytics dashboard."""
-    if not mongo_mgr:
+    mgr = mongo_mgr
+    if mgr is None:
         raise HTTPException(503, "MongoDB not ready")
 
-    loop = asyncio.get_running_loop()            # FIX 3
-    stats = await loop.run_in_executor(None, mongo_mgr.aggregation_stats)
+    loop = asyncio.get_running_loop()
+    stats = await loop.run_in_executor(None, mgr.aggregation_stats)
     return stats
 
 

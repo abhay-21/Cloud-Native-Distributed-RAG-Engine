@@ -197,20 +197,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup kubectl
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Validation Dependencies
+        run: pip install pyyaml
+
+      - name: Validate K8s Manifests (Schema & Integrity)
+        run: python scripts/validate_k8s.py
+
+      - name: Setup kubectl (for live deployment)
+        if: env.HAS_KUBECONFIG == 'true'
+        env:
+          HAS_KUBECONFIG: ${{ secrets.KUBECONFIG != '' }}
         uses: azure/setup-kubectl@v3
         with:
           version: 'v1.30.0'
-
-      - name: Validate K8s Manifests (Client Dry-Run)
-        run: |
-          kubectl apply -f k8s/namespace.yaml --dry-run=client
-          kubectl apply -f k8s/redis-mongo.yaml --dry-run=client
-          kubectl apply -f k8s/api-gateway-deployment.yaml --dry-run=client
-          kubectl apply -f k8s/ml-worker-deployment.yaml --dry-run=client
-          kubectl apply -f k8s/hpa.yaml --dry-run=client
-          kubectl apply -f k8s/ingress.yaml --dry-run=client
-          echo "✅ All Kubernetes manifests validated (dry-run passed)"
 
       - name: Deploy to Live Cluster (if KUBECONFIG provided)
         if: env.HAS_KUBECONFIG == 'true'
